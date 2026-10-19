@@ -1,0 +1,11 @@
+import { useState } from 'react'
+import { Button, Form, Input, notification } from 'antd'
+import { ArrowLeftOutlined, ArrowRightOutlined, LockOutlined } from '@ant-design/icons'
+import { Link, useSearchParams, useNavigate } from 'react-router-dom'
+import { authApi } from '../api/client'
+
+export default function ResetPasswordPage() {
+  const [params] = useSearchParams(); const navigate = useNavigate(); const [loading, setLoading] = useState(false)
+  const submit = async ({ password }) => { setLoading(true); try { await authApi.confirmPasswordReset({ uid: params.get('uid'), token: params.get('token'), new_password: password }); notification.success({ message: 'Đổi mật khẩu thành công' }); navigate('/login') } catch (error) { notification.error({ message: 'Liên kết không hợp lệ hoặc đã hết hạn', description: error.message }) } finally { setLoading(false) } }
+  return <main className="login-page"><div className="login-visual"><div className="visual-brand"><span className="brand-mark">L</span><span>LUMINA</span></div><div className="visual-copy"><span className="eyebrow light">ACCOUNT RECOVERY</span><h1>Mật khẩu<br /><em>mới.</em></h1><p>Đặt mật khẩu mới để tiếp tục sử dụng tài khoản thư viện.</p></div><div className="visual-foot">© 2026 Lumina University Library</div></div><div className="login-form-wrap"><div className="login-form"><Link to="/login" className="back-link"><ArrowLeftOutlined /> Quay lại đăng nhập</Link><div className="eyebrow">KHÔI PHỤC MẬT KHẨU</div><h2>Đặt mật khẩu mới</h2><p className="muted">Mật khẩu cần có ít nhất 8 ký tự.</p><Form layout="vertical" size="large" onFinish={submit}><Form.Item label="Mật khẩu mới" name="password" rules={[{ required: true, min: 8, message: 'Mật khẩu tối thiểu 8 ký tự' }]}><Input.Password prefix={<LockOutlined />} /></Form.Item><Form.Item label="Xác nhận mật khẩu" name="confirm" dependencies={['password']} rules={[{ required: true, message: 'Xác nhận mật khẩu' }, ({ getFieldValue }) => ({ validator(_, value) { return !value || value === getFieldValue('password') ? Promise.resolve() : Promise.reject(new Error('Mật khẩu chưa trùng khớp')) } })]}><Input.Password prefix={<LockOutlined />} /></Form.Item><Button type="primary" htmlType="submit" block loading={loading} icon={<ArrowRightOutlined />} iconPosition="end">Đổi mật khẩu</Button></Form></div></div></main>
+}
