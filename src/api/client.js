@@ -1,5 +1,136 @@
+import axios from 'axios'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
-export async function apiRequest(path, options = {}) { const token = localStorage.getItem('access_token'); const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(options.headers || {}) } }); const payload = response.status === 204 ? null : await response.json().catch(() => null); if (!response.ok) throw new Error(payload?.detail || 'Không thể kết nối máy chủ'); return payload }
-export const authApi = { login: (data) => apiRequest('/auth/login/', { method: 'POST', body: JSON.stringify(data) }), register: (data) => apiRequest('/auth/register/', { method: 'POST', body: JSON.stringify(data) }), me: () => apiRequest('/auth/me/'), updateMe: (data) => apiRequest('/auth/me/', { method: 'PATCH', body: JSON.stringify(data) }), requestPasswordReset: (email) => apiRequest('/auth/password-reset/', { method: 'POST', body: JSON.stringify({ email }) }), confirmPasswordReset: (data) => apiRequest('/auth/password-reset/confirm/', { method: 'POST', body: JSON.stringify(data) }), logout: (refresh) => apiRequest('/auth/logout/', { method: 'POST', body: JSON.stringify({ refresh }) }), users: () => apiRequest('/auth/admin/users/') }
-export const circulationApi = { loans: () => apiRequest('/circulation/loans/'), borrow: (data) => apiRequest('/circulation/loans/borrow/', { method: 'POST', body: JSON.stringify(data) }), renew: (id, due_back) => apiRequest(`/circulation/loans/${id}/renew/`, { method: 'PATCH', body: JSON.stringify({ due_back }) }), returnBook: (id) => apiRequest(`/circulation/loans/${id}/return/`, { method: 'POST' }) }
-export const catalogApi = { books: (search = '') => apiRequest(`/catalog/books/${search ? `?search=${encodeURIComponent(search)}` : ''}`), authors: (search = '') => apiRequest(`/catalog/authors/${search ? `?search=${encodeURIComponent(search)}` : ''}`), instances: () => apiRequest('/catalog/book-instances/') }
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+let refreshPromise = null
+
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      const refresh = localStorage.getItem('refresh_token')
+
+      if (!refresh) {
+        throw new Error('Phiên đăng nhập đã hết hạn')
+      }
+
+      try {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh/`, { refresh }, {
+          headers: { 'Content-Type': 'application/json' }
+        })
+
+        const tokens = response.data
+        localStorage.setItem('access_token', tokens.access)
+
+        if (tokens.refresh) {
+          localStorage.setItem('refresh_token', tokens.refresh)
+        }
+
+        return tokens.access
+      } catch (error) {
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        throw new Error('Phiên đăng nhập đã hết hạn')
+      }
+    })().finally(() => {
+      refreshPromise = null
+    })
+  }
+
+  return refreshPromise
+}
+
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('access_token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+apiClient.interceptors.response.use(
+  (response) => {
+    if (response.status === 204) {
+      return null
+    }
+    return response.data
+  },
+  async (error) => {
+    const originalRequest = error.config
+
+    if (
+      error.response?.status === 401 &&
+      localStorage.getItem('access_token') &&
+      originalRequest &&
+      !originalRequest.url.startsWith('/auth/refresh/') &&
+      !originalRequest._retry
+    ) {
+      originalRequest._retry = true 
+      try {
+        const newToken = await refreshAccessToken()
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return apiClient(originalRequest)
+      } catch (refreshError) {
+        return Promise.reject(refreshError)
+      }
+    }
+
+    const payload = error.response?.data
+    const detail = payload?.detail
+      || (payload && typeof payload === 'object' && Object.entries(payload)
+        .map(([key, value]) => {
+          const message = Array.isArray(value)
+            ? value.join(', ')
+            : String(value)
+          return `${key}: ${message}`
+        })
+        .join('; '))
+      || 'Không thể kết nối máy chủ'
+
+    return Promise.reject(new Error(detail))
+  }
+)
+
+const query = (search) => (
+  search ? `?search=${encodeURIComponent(search)}` : ''
+)
+
+export const authApi = {
+  login: (data) => apiClient.post('/auth/login/', data),
+  register: (data) => apiClient.post('/auth/register/', data),
+  me: () => apiClient.get('/auth/me/'),
+  updateMe: (data) => apiClient.patch('/auth/me/', data),
+  requestPasswordReset: (email) => email,
+  confirmPasswordReset: (data) => data,
+  logout: (refresh) => apiClient.post('/auth/logout/', { refresh }),
+  users: () => apiClient.get('/auth/admin/users/'),
+  createUser: (data) => apiClient.post('/auth/admin/users/', data),
+  updateUser: (id, data) => apiClient.patch(`/auth/admin/users/${id}/`, data),
+}
+
+export const circulationApi = {
+  loans: () => apiClient.get('/circulation/loans/'),
+  borrow: (data) => apiClient.post('/circulation/loans/borrow/', data),
+  renew: (id, due_back) => apiClient.patch(`/circulation/loans/${id}/renew/`, { due_back }),
+  returnBook: (id) => apiClient.post(`/circulation/loans/${id}/return/`),
+}
+
+export const catalogApi = {
+  books: (search = '') => apiClient.get(`/catalog/books/${query(search)}`),
+  createBook: (data) => apiClient.post('/catalog/books/', data),
+  updateBook: (id, data) => apiClient.patch(`/catalog/books/${id}/`, data),
+  authors: (search = '') => apiClient.get(`/catalog/authors/${query(search)}`),
+  createAuthor: (data) => apiClient.post('/catalog/authors/', data),
+  languages: () => apiClient.get('/catalog/languages/'),
+  createLanguage: (data) => apiClient.post('/catalog/languages/', data),
+  genres: () => apiClient.get('/catalog/genres/'),
+  createGenre: (data) => apiClient.post('/catalog/genres/', data),
+  instances: () => apiClient.get('/catalog/book-instances/'),
+  createInstance: (data) => apiClient.post('/catalog/book-instances/', data),
+}
