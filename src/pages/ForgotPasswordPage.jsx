@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Form, Input } from 'antd'
+import { Button, Form, Input, notification } from 'antd'
 import { ArrowLeftOutlined, MailOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { authApi } from '../api/client'
@@ -7,7 +7,20 @@ import { authApi } from '../api/client'
 export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false)
 
-  const submit = ()=>{}
+  const submit = async ({ email }) => {
+    setLoading(true)
+    try {
+      await authApi.requestPasswordReset(email)
+      notification.success({
+        message: 'Đã gửi yêu cầu',
+        description: 'Nếu email thuộc tài khoản đang hoạt động, hướng dẫn reset sẽ được gửi đến hộp thư.',
+      })
+    } catch (error) {
+      notification.error({ message: 'Không gửi được yêu cầu', description: error.message })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
     <main className="login-page">
@@ -39,13 +52,20 @@ export default function ForgotPasswordPage() {
 
           <Form layout="vertical" size="large" onFinish={submit}>
             <Form.Item
-
+              name="email"
+              rules={[
+                { required: true, message: 'Vui lòng nhập địa chỉ email!' },
+                { type: 'email', message: 'Định dạng email không hợp lệ!' }
+              ]}
             >
               <Input prefix={<MailOutlined />} placeholder="email@university.edu.vn" />
             </Form.Item>
 
             <Button
-
+              type="primary"
+              htmlType="submit"
+              loading={loading}
+              block
             >
               Gửi liên kết khôi phục
             </Button>

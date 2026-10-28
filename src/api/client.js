@@ -36,6 +36,7 @@ async function refreshAccessToken() {
       } catch (error) {
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
+        window.dispatchEvent(new Event('library:session-expired'))
         throw new Error('Phiên đăng nhập đã hết hạn')
       }
     })().finally(() => {
@@ -48,7 +49,7 @@ async function refreshAccessToken() {
 
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
-  if (token) {
+  if (token && !config.skipAuth) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
@@ -66,6 +67,7 @@ apiClient.interceptors.response.use(
 
     if (
       error.response?.status === 401 &&
+      !originalRequest?.skipAuth &&
       localStorage.getItem('access_token') &&
       originalRequest &&
       !originalRequest.url.startsWith('/auth/refresh/') &&
@@ -106,12 +108,15 @@ export const authApi = {
   register: (data) => apiClient.post('/auth/register/', data),
   me: () => apiClient.get('/auth/me/'),
   updateMe: (data) => apiClient.patch('/auth/me/', data),
-  requestPasswordReset: (email) => email,
-  confirmPasswordReset: (data) => data,
   logout: (refresh) => apiClient.post('/auth/logout/', { refresh }),
   users: () => apiClient.get('/auth/admin/users/'),
   createUser: (data) => apiClient.post('/auth/admin/users/', data),
   updateUser: (id, data) => apiClient.patch(`/auth/admin/users/${id}/`, data),
+  deleteUser: (id) => apiClient.delete(`/auth/admin/users/${id}/`),
+  requestPasswordReset: (email) =>
+    apiClient.post('/auth/password-reset/', { email }, { skipAuth: true }),
+  confirmPasswordReset: (data) =>
+    apiClient.post('/auth/password-reset/confirm/', data, { skipAuth: true }),
 }
 
 export const circulationApi = {
@@ -133,4 +138,11 @@ export const catalogApi = {
   createGenre: (data) => apiClient.post('/catalog/genres/', data),
   instances: () => apiClient.get('/catalog/book-instances/'),
   createInstance: (data) => apiClient.post('/catalog/book-instances/', data),
+  list: (resource, search = '') =>
+    apiClient.get(`/catalog/${resource}/${query(search)}`),
+  detail: (resource, id) => apiClient.get(`/catalog/${resource}/${id}/`),
+  create: (resource, data) => apiClient.post(`/catalog/${resource}/`, data),
+  update: (resource, id, data) =>
+    apiClient.patch(`/catalog/${resource}/${id}/`, data),
+  remove: (resource, id) => apiClient.delete(`/catalog/${resource}/${id}/`),
 }
