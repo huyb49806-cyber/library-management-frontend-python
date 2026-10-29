@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Button, Form, Input, Modal, notification, Space, Table, Tag } from 'antd'
+import { Button, Form, Input, Modal, notification, Select, Space, Table, Tag } from 'antd'
 import { PlusOutlined } from '@ant-design/icons'
 import { useSelector } from 'react-redux'
-import { circulationApi } from '../api/client'
+import { authApi, catalogApi, circulationApi } from '../api/client'
 
 const listPayload = (payload) =>
   Array.isArray(payload) ? payload : payload?.results || []
@@ -16,6 +16,8 @@ export default function LoansPage() {
   const [borrowOpen, setBorrowOpen] = useState(false)
   const [renewTarget, setRenewTarget] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [availableCopies, setAvailableCopies] = useState([])
+  const [members, setMembers] = useState([])
 
   const [borrowForm] = Form.useForm()
   const [renewForm] = Form.useForm()
@@ -27,6 +29,23 @@ export default function LoansPage() {
     try {
       const payload = await circulationApi.loans()
       setLoans(listPayload(payload))
+
+      if (canOperate) {
+        try {
+          const instPayload = await catalogApi.instances()
+          const instances = listPayload(instPayload)
+          setAvailableCopies(instances.filter((item) => item.status === 'a'))
+        } catch {
+          // Ignore if catalog instances error
+        }
+
+        try {
+          const usersPayload = await authApi.users()
+          setMembers(listPayload(usersPayload))
+        } catch {
+          // Ignore if users endpoint unavailable
+        }
+      }
     } catch (error) {
       notification.error({
         message: 'Không tải được lượt mượn',
@@ -113,12 +132,18 @@ export default function LoansPage() {
       render: (id) => <span className="mono-id">{id}</span>,
     },
     {
-      title: 'MÃ ĐẦU SÁCH',
-      dataIndex: 'book_id',
+      title: 'ĐẦU SÁCH',
+      dataIndex: 'book_title',
+      render: (title, row) => (
+        <div>
+          <strong>{title || `Sách #${row.book_id}`}</strong>
+        </div>
+      ),
     },
     {
       title: 'NGƯỜI MƯỢN',
-      dataIndex: 'borrower_id',
+      dataIndex: 'borrower_name',
+      render: (name, row) => name || (row.borrower_id ? `Độc giả #${row.borrower_id}` : '—'),
     },
     {
       title: 'HẠN TRẢ',
@@ -202,6 +227,7 @@ export default function LoansPage() {
         confirmLoading={saving}
         okText="Chốt mượn"
         cancelText="Hủy"
+        width={560}
       >
         <Form
           form={borrowForm}
@@ -209,19 +235,45 @@ export default function LoansPage() {
           onFinish={borrow}
         >
           <Form.Item
-            label="ID độc giả"
+            label="Độc giả"
             name="member_id"
-            rules={[{ required: true, message: 'Nhập ID độc giả' }]}
+            rules={[{ required: true, message: 'Chọn hoặc nhập thông tin độc giả' }]}
+            extra="Chọn từ danh sách hoặc nhập trực tiếp ID (VD: 1), Tên đăng nhập (VD: dailinh) hoặc Email."
           >
-            <Input inputMode="numeric" />
+            {members.length > 0 ? (
+              <Select
+                showSearch
+                placeholder="Chọn độc giả hoặc tìm theo tên..."
+                optionFilterProp="label"
+                options={members.map((m) => ({
+                  value: String(m.id),
+                  label: `#${m.id} - ${m.username} (${m.first_name || ''} ${m.last_name || ''})`.trim(),
+                }))}
+              />
+            ) : (
+              <Input placeholder="Nhập ID (VD: 1), Tên đăng nhập hoặc Email của độc giả" />
+            )}
           </Form.Item>
 
           <Form.Item
-            label="UUID bản sao"
+            label="Bản sao sách cần mượn"
             name="book_instance_id"
-            rules={[{ required: true, message: 'Nhập UUID bản sao' }]}
+            rules={[{ required: true, message: 'Chọn hoặc nhập bản sao sách' }]}
+            extra="Chọn cuốn sách có sẵn trong kho, hoặc nhập UUID / ID sách / Tên sách."
           >
-            <Input />
+            {availableCopies.length > 0 ? (
+              <Select
+                showSearch
+                placeholder="Chọn sách có sẵn trong kho..."
+                optionFilterProp="label"
+                options={availableCopies.map((item) => ({
+                  value: item.id,
+                  label: `${item.book_title} (Mã: ${item.id.slice(0, 8)}... - ${item.imprint || 'Bản kho'})`,
+                }))}
+              />
+            ) : (
+              <Input placeholder="Nhập UUID bản sao, ID đầu sách hoặc Tên sách" />
+            )}
           </Form.Item>
         </Form>
       </Modal>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Button, Form, Input, notification } from 'antd'
+import { Alert, Button, Form, Input, Modal, notification } from 'antd'
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
@@ -14,24 +14,52 @@ import { authApi } from '../api/client'
 export default function RegisterPage() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState(null)
+  const [modal, modalContextHolder] = Modal.useModal()
+
+  const formatErrorMessage = (msg) => {
+    if (!msg) return 'Vui lòng kiểm tra lại thông tin đăng ký.'
+    if (msg.includes('Username already exists')) return 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên đăng nhập khác.'
+    if (msg.includes('Email already exists')) return 'Địa chỉ email này đã được sử dụng. Vui lòng sử dụng email khác.'
+    if (msg.includes('Passwords do not match') || msg.includes('Mật khẩu chưa trùng khớp')) return 'Mật khẩu xác nhận không khớp với mật khẩu đã nhập.'
+    if (msg.includes('student_code') || msg.includes('Mã sinh viên')) return 'Mã sinh viên này đã được sử dụng bởi một tài khoản khác.'
+    return msg
+  }
 
   const submit = async (values) => {
     setLoading(true)
+    setErrorMessage(null)
     try {
       await authApi.register(values)
-      notification.success({
-        message: 'Đăng ký thành công',
-        description: 'Bạn có thể đăng nhập bằng tài khoản vừa tạo.',
+      modal.success({
+        title: 'Đăng ký tài khoản thành công!',
+        content: 'Tài khoản thành viên đã được tạo. Bạn có thể đăng nhập ngay bây giờ.',
+        okText: 'Đăng nhập ngay',
+        onOk: () => navigate('/login'),
       })
-      navigate('/login')
     } catch (error) {
-      notification.error({
-        message: 'Không thể đăng ký',
-        description: error.message,
+      const friendlyError = formatErrorMessage(error.message)
+      setErrorMessage(friendlyError)
+      modal.error({
+        title: 'Thông tin đăng ký không hợp lệ',
+        content: friendlyError,
+        okText: 'Kiểm tra lại',
       })
     } finally {
       setLoading(false)
     }
+  }
+
+  const onFinishFailed = ({ errorFields }) => {
+    const errorCount = errorFields.length
+    const firstMsg = errorFields[0]?.errors[0] || 'Vui lòng kiểm tra lại các trường thông tin.'
+    const fullMsg = `Có ${errorCount} mục chưa hợp lệ: ${firstMsg}`
+    setErrorMessage(fullMsg)
+    modal.warning({
+      title: 'Thông tin nhập chưa đúng hoặc còn thiếu',
+      content: fullMsg,
+      okText: 'Chỉnh sửa lại',
+    })
   }
 
   return (
@@ -55,6 +83,7 @@ export default function RegisterPage() {
       </div>
 
       <div className="login-form-wrap">
+        {modalContextHolder}
         <div className="login-form register-form">
           <Link to="/login" className="back-link">
             <ArrowLeftOutlined /> Quay lại đăng nhập
@@ -63,7 +92,19 @@ export default function RegisterPage() {
           <h2>Tạo tài khoản</h2>
           <p className="muted">Đăng ký miễn phí để sử dụng thư viện.</p>
 
-          <Form layout="vertical" size="large" onFinish={submit}>
+          {errorMessage && (
+            <Alert
+              message="Thông tin nhập chưa chính xác"
+              description={errorMessage}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setErrorMessage(null)}
+              style={{ marginBottom: 20 }}
+            />
+          )}
+
+          <Form layout="vertical" size="large" onFinish={submit} onFinishFailed={onFinishFailed}>
             <div className="form-columns">
               <Form.Item label="Họ" name="first_name" rules={[{ required: true, message: 'Nhập họ' }]}>
                 <Input prefix={<UserOutlined />} placeholder="Nguyễn" />

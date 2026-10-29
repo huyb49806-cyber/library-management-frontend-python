@@ -36,8 +36,8 @@ export default function DashboardPage() {
         <div className="panel-heading"><div><h2>Lượt mượn đang mở</h2><span className="panel-subtitle">Thứ tự theo dữ liệu trả về từ circulation API</span></div><Button type="link" onClick={() => navigate('/loans')}>Xem tất cả</Button></div>
         <Table rowKey="id" dataSource={data.loans.slice(0, 8)} pagination={false} columns={[
           { title: 'MÃ BẢN SAO', dataIndex: 'id' },
-          { title: 'MÃ ĐẦU SÁCH', dataIndex: 'book_id' },
-          { title: 'NGƯỜI MƯỢN', dataIndex: 'borrower_id' },
+          { title: 'ĐẦU SÁCH', dataIndex: 'book_title', render: (title, row) => <strong>{title || `Sách #${row.book_id}`}</strong> },
+          { title: 'NGƯỜI MƯỢN', dataIndex: 'borrower_name', render: (name, row) => name || (row.borrower_id ? `Độc giả #${row.borrower_id}` : '—') },
           { title: 'HẠN TRẢ', dataIndex: 'due_back' },
           { title: 'TRẠNG THÁI', render: (_, row) => <Tag color={row.is_overdue ? 'error' : 'processing'}>{row.is_overdue ? 'Quá hạn' : 'Đang mượn'}</Tag> },
         ]} />
