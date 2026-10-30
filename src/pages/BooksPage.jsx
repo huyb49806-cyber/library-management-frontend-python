@@ -11,7 +11,6 @@ import {
 } from 'antd'
 import {
   BookOutlined,
-  DeleteOutlined,
   EyeOutlined,
   SearchOutlined,
 } from '@ant-design/icons'
@@ -49,31 +48,6 @@ export default function BooksPage() {
     load()
   }, [])
 
-  // --- HÀM REMOVE BOOK DÀNH CHO ADMIN ---
-  const removeBook = (book) => {
-    Modal.confirm({
-      title: `Xóa đầu sách "${book.title}"?`,
-      content:
-        book.total_copies > 0
-          ? `Đầu sách này hiện có ${book.total_copies} bản sao trong kho. Các bản sao này sẽ được xóa cùng đầu sách.`
-          : undefined,
-      okText: 'Xóa',
-      okButtonProps: { danger: true },
-      cancelText: 'Hủy',
-      onOk: async () => {
-        try {
-          await catalogApi.remove('books', book.id)
-          notification.success({ message: 'Đã xóa đầu sách' })
-          await load()
-        } catch (error) {
-          notification.error({
-            message: 'Không xóa được đầu sách',
-            description: error.message,
-          })
-        }
-      },
-    })
-  }
 
   return (
     <div className="page">
@@ -159,24 +133,13 @@ export default function BooksPage() {
               title: 'THAO TÁC',
               key: 'actions',
               render: (_, row) => (
-                <Space>
-                  <Button
-                    icon={<EyeOutlined />}
-                    title="Xem chi tiết & tình trạng kho"
-                    onClick={() => setDetailBook(row)}
-                  >
-                    Chi tiết
-                  </Button>
-                  {user?.role === 'Admin' && (
-                    <Button
-                      danger
-                      icon={<DeleteOutlined />}
-                      aria-label={`Xóa ${row.title}`}
-                      title="Xóa đầu sách"
-                      onClick={() => removeBook(row)}
-                    />
-                  )}
-                </Space>
+                <Button
+                  icon={<EyeOutlined />}
+                  title="Xem chi tiết & tình trạng kho"
+                  onClick={() => setDetailBook(row)}
+                >
+                  Chi tiết
+                </Button>
               ),
             },
           ]}
