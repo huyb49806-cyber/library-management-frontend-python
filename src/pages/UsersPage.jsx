@@ -5,7 +5,12 @@ import { useSelector } from 'react-redux'
 import { authApi } from '../api/client'
 
 const listPayload = (payload) => Array.isArray(payload) ? payload : payload?.results || []
-const groupOptions = ['Member', 'Librarian', 'Admin'].map((value) => ({ value, label: value }))
+
+const roleOptions = [
+  { value: 'Member', label: 'Member (Độc giả)' },
+  { value: 'Librarian', label: 'Librarian (Thủ thư)' },
+  { value: 'Admin', label: 'Admin (Quản trị viên)' },
+]
 
 export default function UsersPage() {
   const currentUser = useSelector((state) => state.auth.user)
@@ -35,19 +40,22 @@ export default function UsersPage() {
   const openCreate = () => {
     setEditing(null)
     form.resetFields()
-    form.setFieldsValue({ groups: ['Member'], is_active: true })
+    form.setFieldsValue({ role: 'Member', is_active: true })
     setOpen(true)
   }
 
   const openEdit = (record) => {
     setEditing(record)
     form.resetFields()
-    form.setFieldsValue({ ...record, password: '' })
+    const primaryRole = record.groups?.[0] || 'Member'
+    form.setFieldsValue({ ...record, role: primaryRole, password: '' })
     setOpen(true)
   }
 
   const save = async (values) => {
-    const payload = { ...values, groups: values.groups || [] }
+    const selectedRole = values.role || 'Member'
+    const payload = { ...values, groups: [selectedRole] }
+    delete payload.role
     if (!payload.password) delete payload.password
 
     setSaving(true)
@@ -122,7 +130,20 @@ export default function UsersPage() {
         </div>
       ),
     },
-    { title: 'VAI TRÒ', dataIndex: 'groups', render: (groups) => groups?.length ? groups.join(', ') : 'Chưa gán nhóm' },
+    {
+      title: 'VAI TRÒ',
+      dataIndex: 'groups',
+      render: (groups) => {
+        const role = groups?.[0] || 'Member'
+        const color = role === 'Admin' ? 'magenta' : role === 'Librarian' ? 'blue' : 'green'
+        const labelMap = {
+          Admin: 'Admin (Quản trị viên)',
+          Librarian: 'Librarian (Thủ thư)',
+          Member: 'Member (Độc giả)',
+        }
+        return <Tag color={color}>{labelMap[role] || role}</Tag>
+      },
+    },
     {
       title: 'SÁCH ĐANG MƯỢN',
       dataIndex: 'borrowed_books_count',
@@ -135,7 +156,11 @@ export default function UsersPage() {
         )
       ),
     },
-    { title: 'TRẠNG THÁI', dataIndex: 'is_active', render: (active) => <Tag color={active ? 'success' : 'error'}>{active ? 'Đang hoạt động' : 'Đã khóa'}</Tag> },
+    {
+      title: 'TRẠNG THÁI',
+      dataIndex: 'is_active',
+      render: (active) => <Tag color={active ? 'success' : 'error'}>{active ? 'Đang hoạt động' : 'Đã khóa'}</Tag>
+    },
     {
       title: 'THAO TÁC',
       key: 'actions',
@@ -169,17 +194,63 @@ export default function UsersPage() {
   return (
     <div className="page">
       {modalContextHolder}
-      <div className="page-heading"><div><div className="eyebrow">DOMAIN 2 · USER MANAGEMENT</div><h1>Người dùng</h1><p className="muted">Quản lý tài khoản, trạng thái và nhóm quyền.</p></div><Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Thêm người dùng</Button></div>
-      <section className="panel catalog-panel"><Table rowKey="id" loading={loading} columns={columns} dataSource={users} pagination={{ pageSize: 8, showSizeChanger: false }} /></section>
-      <Modal title={editing ? `Cập nhật tài khoản #${editing.id} (${editing.username})` : 'Thêm người dùng'} open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} confirmLoading={saving} destroyOnClose>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">DOMAIN 2 · USER MANAGEMENT</div>
+          <h1>Người dùng</h1>
+          <p className="muted">Quản lý tài khoản, trạng thái và vai trò phân quyền.</p>
+        </div>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>Thêm người dùng</Button>
+      </div>
+
+      <section className="panel catalog-panel">
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={users}
+          pagination={{ pageSize: 8, showSizeChanger: false }}
+        />
+      </section>
+
+      <Modal
+        title={editing ? `Cập nhật tài khoản #${editing.id} (${editing.username})` : 'Thêm người dùng'}
+        open={open}
+        onCancel={() => setOpen(false)}
+        onOk={() => form.submit()}
+        confirmLoading={saving}
+        destroyOnClose
+      >
         <Form form={form} layout="vertical" onFinish={save}>
-          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}><Input /></Form.Item>
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Nhập email hợp lệ' }]}><Input /></Form.Item>
-          <Form.Item name="first_name" label="Họ"><Input /></Form.Item>
-          <Form.Item name="last_name" label="Tên"><Input /></Form.Item>
-          <Form.Item name="groups" label="Nhóm quyền"><Select mode="multiple" options={groupOptions} /></Form.Item>
-          <Form.Item name="is_active" label="Tài khoản đang hoạt động" valuePropName="checked"><Switch /></Form.Item>
-          <Form.Item name="password" label={editing ? 'Mật khẩu mới (để trống để giữ nguyên)' : 'Mật khẩu'} rules={editing ? [] : [{ required: true, message: 'Nhập mật khẩu' }]}><Input.Password autoComplete="new-password" /></Form.Item>
+          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: 'Nhập tên đăng nhập' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Nhập email hợp lệ' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="first_name" label="Họ">
+            <Input />
+          </Form.Item>
+          <Form.Item name="last_name" label="Tên">
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="role"
+            label="Vai trò (chỉ chọn 1 trong 3)"
+            rules={[{ required: true, message: 'Vui lòng chọn 1 vai trò' }]}
+          >
+            <Select options={roleOptions} placeholder="Chọn vai trò" />
+          </Form.Item>
+          <Form.Item name="is_active" label="Tài khoản đang hoạt động" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label={editing ? 'Mật khẩu mới (để trống để giữ nguyên)' : 'Mật khẩu'}
+            rules={editing ? [] : [{ required: true, message: 'Nhập mật khẩu' }]}
+          >
+            <Input.Password autoComplete="new-password" />
+          </Form.Item>
         </Form>
       </Modal>
     </div>
