@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Button, Checkbox, Form, Input, notification } from 'antd'
+import { Alert, Button, Checkbox, Form, Input, notification } from 'antd'
 import { LockOutlined, UserOutlined, ArrowRightOutlined, BookOutlined } from '@ant-design/icons'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useDispatch } from 'react-redux'
 import { setSession } from '../store'
 import { authApi } from '../api/client'
@@ -9,21 +9,30 @@ import { clearStoredTokens, toSessionUser } from '../session'
 
 export default function LoginPage() {
   const dispatch = useDispatch()
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
+  const [errorMessage, setErrorMessage] = useState(null)
 
   const submit = async (values) => {
     setLoading(true)
+    setErrorMessage(null)
     try {
-      const tokens = await authApi.login(values)
+      const tokens = await authApi.login({
+        username: values.username.trim(),
+        password: values.password,
+      })
       localStorage.setItem('access_token', tokens.access)
       localStorage.setItem('refresh_token', tokens.refresh)
       
       const profile = await authApi.me()
       dispatch(setSession({ user: toSessionUser(profile), ...tokens }))
       notification.success({ message: 'Đăng nhập thành công' })
+      navigate('/', { replace: true })
     } catch (e) {
       clearStoredTokens()
-      notification.error({ message: 'Không thể đăng nhập', description: e.message })
+      const msg = e.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.'
+      setErrorMessage(msg)
+      notification.error({ message: 'Không thể đăng nhập', description: msg })
     } finally {
       setLoading(false)
     }
@@ -57,13 +66,25 @@ export default function LoginPage() {
           <h2>Chào mừng trở lại</h2>
           <p className="muted">Đăng nhập để tiếp tục làm việc với thư viện.</p>
 
+          {errorMessage && (
+            <Alert
+              message="Đăng nhập không thành công"
+              description={errorMessage}
+              type="error"
+              showIcon
+              closable
+              onClose={() => setErrorMessage(null)}
+              style={{ marginBottom: 20 }}
+            />
+          )}
+
           <Form layout="vertical" size="large" onFinish={submit} initialValues={{ remember: true }}>
             <Form.Item
-              label="Tên đăng nhập"
+              label="Tên đăng nhập hoặc Email"
               name="username"
-              rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập' }]}
+              rules={[{ required: true, message: 'Vui lòng nhập tên đăng nhập hoặc email' }]}
             >
-              <Input prefix={<UserOutlined />} placeholder="Nhập tên đăng nhập" />
+              <Input prefix={<UserOutlined />} placeholder="Nhập tên đăng nhập hoặc email" autoFocus />
             </Form.Item>
 
             <Form.Item
@@ -95,7 +116,7 @@ export default function LoginPage() {
             </Button>
           </Form>
 
-          <div className="register-link">
+          <div className="register-link" style={{ marginTop: 20, textAlign: 'center' }}>
             Chưa có tài khoản? <Link to="/register">Đăng ký ngay</Link>
           </div>
           <div className="login-note">Bạn cần hỗ trợ? Liên hệ quản trị viên hệ thống.</div>

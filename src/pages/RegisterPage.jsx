@@ -19,18 +19,45 @@ export default function RegisterPage() {
 
   const formatErrorMessage = (msg) => {
     if (!msg) return 'Vui lòng kiểm tra lại thông tin đăng ký.'
-    if (msg.includes('Username already exists')) return 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên đăng nhập khác.'
-    if (msg.includes('Email already exists')) return 'Địa chỉ email này đã được sử dụng. Vui lòng sử dụng email khác.'
-    if (msg.includes('Passwords do not match') || msg.includes('Mật khẩu chưa trùng khớp')) return 'Mật khẩu xác nhận không khớp với mật khẩu đã nhập.'
-    if (msg.includes('student_code') || msg.includes('Mã sinh viên')) return 'Mã sinh viên này đã được sử dụng bởi một tài khoản khác.'
-    return msg
+    if (
+      msg.includes('quá yếu') ||
+      msg.includes('too common') ||
+      msg.includes('entirely numeric') ||
+      msg.includes('too similar') ||
+      msg.includes('too short') ||
+      msg.includes('password_too_common') ||
+      (msg.includes('password') && !msg.includes('password_confirm') && !msg.includes('khớp'))
+    ) {
+      return 'Mật khẩu quá yếu.'
+    }
+    if (msg.includes('email') || msg.includes('Email') || msg.includes('đã được sử dụng cho một tài khoản khác')) {
+      return 'Địa chỉ email này đã được sử dụng. Vui lòng sử dụng email khác.'
+    }
+    if (msg.includes('username') || msg.includes('Username') || msg.includes('Tên đăng nhập')) {
+      return 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên đăng nhập khác.'
+    }
+    if (msg.includes('Passwords do not match') || msg.includes('Mật khẩu chưa trùng khớp') || msg.includes('không khớp') || msg.includes('password_confirm')) {
+      return 'Mật khẩu xác nhận không khớp với mật khẩu đã nhập.'
+    }
+    if (msg.includes('student_code') || msg.includes('Mã sinh viên') || msg.includes('sinh viên')) {
+      return 'Mã sinh viên này đã được sử dụng bởi một tài khoản khác.'
+    }
+    return msg.replace(/^non_field_errors:\s*/i, '').replace(/^password:\s*/i, '')
   }
 
   const submit = async (values) => {
     setLoading(true)
     setErrorMessage(null)
     try {
-      await authApi.register(values)
+      await authApi.register({
+        ...values,
+        username: values.username?.trim(),
+        email: values.email?.trim(),
+        first_name: values.first_name?.trim(),
+        last_name: values.last_name?.trim(),
+        student_code: values.student_code ? values.student_code.trim() : undefined,
+        phone: values.phone ? values.phone.trim() : undefined,
+      })
       modal.success({
         title: 'Đăng ký tài khoản thành công!',
         content: 'Tài khoản thành viên đã được tạo. Bạn có thể đăng nhập ngay bây giờ.',
@@ -107,7 +134,7 @@ export default function RegisterPage() {
           <Form layout="vertical" size="large" onFinish={submit} onFinishFailed={onFinishFailed}>
             <div className="form-columns">
               <Form.Item label="Họ" name="first_name" rules={[{ required: true, message: 'Nhập họ' }]}>
-                <Input prefix={<UserOutlined />} placeholder="Nguyễn" />
+                <Input prefix={<UserOutlined />} placeholder="Nguyễn" autoFocus />
               </Form.Item>
               <Form.Item label="Tên" name="last_name" rules={[{ required: true, message: 'Nhập tên' }]}>
                 <Input placeholder="Văn An" />
